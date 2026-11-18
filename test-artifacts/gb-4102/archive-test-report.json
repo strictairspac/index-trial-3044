@@ -1,0 +1,204 @@
+{
+  "passed": true,
+  "checks": [
+    {
+      "check": "A1 任务创建进入复制阶段",
+      "ok": true,
+      "detail": "job=1 total=2520"
+    },
+    {
+      "check": "A2 复制进行中可观察到进度",
+      "ok": true,
+      "detail": "copied=100/2520"
+    },
+    {
+      "check": "A3 搬迁中更正热表旧记录被接受",
+      "ok": true,
+      "detail": "{'id': 100, 'source': 'hot'}"
+    },
+    {
+      "check": "A4 搬迁中补录截止前记录被接受",
+      "ok": true,
+      "detail": "{'id': 5001, 'source': 'hot'}"
+    },
+    {
+      "check": "A5 搬迁中补录截止后记录被接受",
+      "ok": true,
+      "detail": "{'id': 5002, 'source': 'hot'}"
+    },
+    {
+      "check": "A6 归档任务完成且已切换",
+      "ok": true,
+      "detail": "state=archived cutoff=2026-11-15T00:00:00"
+    },
+    {
+      "check": "A7 搬迁期间的更正保留在冷表",
+      "ok": true,
+      "detail": "{'value': 777.77}"
+    },
+    {
+      "check": "A8 截止前补录随搬迁进入冷表",
+      "ok": true,
+      "detail": "{'id': 5001, 'value': 55.5}"
+    },
+    {
+      "check": "A9 截止后补录留在热表",
+      "ok": true,
+      "detail": "{'id': 5002, 'value': 66.6}"
+    },
+    {
+      "check": "A10 热表旧副本已清理",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "A11 冷热合计等于原数据加两次补录",
+      "ok": true,
+      "detail": "hot=2481 cold=2521"
+    },
+    {
+      "check": "A12 冷表无重复记录",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "A13 逻辑读跨表可见补录与更正",
+      "ok": true,
+      "detail": "rows=52"
+    },
+    {
+      "check": "B1 worker 在切换前被杀死",
+      "ok": true,
+      "detail": "killed at copied=100/900"
+    },
+    {
+      "check": "B2 中断后未发生切换",
+      "ok": true,
+      "detail": "cutoff=2026-11-15T00:00:00 phase=copying"
+    },
+    {
+      "check": "B3 中断时冷表只有部分副本",
+      "ok": true,
+      "detail": "cold=2621"
+    },
+    {
+      "check": "B4 续跑请求被接受",
+      "ok": true,
+      "detail": "copying"
+    },
+    {
+      "check": "B5 续跑后完成并切换",
+      "ok": true,
+      "detail": "cutoff=2026-11-20T00:00:00"
+    },
+    {
+      "check": "B6 续跑不重复搬迁",
+      "ok": true,
+      "detail": "cold=3421 expect=3421"
+    },
+    {
+      "check": "B7 热表新边界以下已清理",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "B8 场景A的更正仍在冷表",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "B9 冷表越界记录为零",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "C11 切换期间试验完成",
+      "ok": true,
+      "detail": "None"
+    },
+    {
+      "check": "C12 建索引前后结果等价且行数不变",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "C13 试验读取跨越冷热两表",
+      "ok": true,
+      "detail": "['telemetry', 'telemetry_archive']"
+    },
+    {
+      "check": "C14 校验和与切换前逻辑数据集一致",
+      "ok": true,
+      "detail": "trial=01b8d160d635 expect=01b8d160d635"
+    },
+    {
+      "check": "C5 切换发生在单次试验执行窗口内",
+      "ok": true,
+      "detail": "{'experiment': 1, 'before_cutoff': '2026-11-20T00:00:00', 'end_cutoff': '2026-11-22T00:00:00', 'checksum': '01b8d160d6353d1a4e637ff49e02358835541603374086cb18fde70826c547dd'}"
+    },
+    {
+      "check": "C6 切换前后逻辑读逐行一致",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "C7 切换后复跑试验仍读同一版记录",
+      "ok": true,
+      "detail": "01b8d160d635"
+    }
+  ],
+  "evidence": {
+    "A": {
+      "job": {
+        "id": 1,
+        "cutoff": "2026-11-15T00:00:00",
+        "prev_cutoff": null,
+        "phase": "completed",
+        "checkpoint_id": 5001,
+        "total_rows": 2520,
+        "copied_rows": 2521,
+        "cleaned_rows": 2521,
+        "verify_rounds": 1,
+        "error": null,
+        "created_at": "2026-11-18T06:50:23.763596",
+        "switched_at": "2026-11-18T06:50:28.032669",
+        "finished_at": "2026-11-18T06:50:32.142460"
+      },
+      "backfill_old": 5001,
+      "backfill_new": 5002
+    },
+    "B": {
+      "job": {
+        "id": 2,
+        "cutoff": "2026-11-20T00:00:00",
+        "prev_cutoff": "2026-11-15T00:00:00",
+        "phase": "completed",
+        "checkpoint_id": 3420,
+        "total_rows": 900,
+        "copied_rows": 900,
+        "cleaned_rows": 900,
+        "verify_rounds": 1,
+        "error": null,
+        "created_at": "2026-11-18T06:50:32.244644",
+        "switched_at": "2026-11-18T06:50:35.649237",
+        "finished_at": "2026-11-18T06:50:37.089888"
+      },
+      "cold_mid_interrupt": 2621,
+      "cold_final": 3421
+    },
+    "C": {
+      "expected_sha": "01b8d160d6353d1a4e637ff49e02358835541603374086cb18fde70826c547dd",
+      "rows": 52,
+      "mid_switch": {
+        "experiment": 1,
+        "before_cutoff": "2026-11-20T00:00:00",
+        "end_cutoff": "2026-11-22T00:00:00",
+        "checksum": "01b8d160d6353d1a4e637ff49e02358835541603374086cb18fde70826c547dd"
+      },
+      "post_switch": {
+        "id": 2,
+        "checksum": "01b8d160d6353d1a4e637ff49e02358835541603374086cb18fde70826c547dd"
+      }
+    }
+  }
+}

@@ -5,7 +5,16 @@
 ## 业务场景
 上游来自泵站温升告警与值班 SQL 文件。过去同事在表格记录列顺序、手动建索引后截取计划，存在参数版本混乱、前后结果不一致未发现、写入代价未记录三项痛点。本站生成固定 SELECT，在专用 5,000 行遥测库内串行建索引、采集执行计划、保存输入快照，交给可靠性复核人判断。
 
-模块：工作负载录入/编辑、候选列序设计、后台试验队列、真实结果对比/JSON 导出；管理员另有审计。核心实体 workloads / candidates / experiments，样本表 telemetry。
+模块：工作负载录入/编辑、候选列序设计、后台试验队列、真实结果对比/JSON 导出、遥测补录/更正与冷热归档；管理员另有审计。核心实体 workloads / candidates / experiments / archive_jobs，样本表 telemetry（热）与 telemetry_archive（冷）。
+
+## 冷热分层归档
+热表只保留近期遥测，归档按截止时间把旧记录搬入冷表，全程不锁补录与更正：
+
+1. **复制**：按 id 水位分批把 `recorded_at < cutoff` 的热表行同步到冷表（条件 upsert，以 `updated_at` 定胜负），断点续跑不重复；期间命中的写入由应用双写冷表。
+2. **核对**：追平增量后比较两侧行数与 CRC32 校验和，一致才在一个事务里翻转 `archive_state.cutoff`——读写位置一次性切换。
+3. **清理**：切换后分批把热表旧副本先同步再删除，最后标记完成。中断（含 kill -9）后任务停在原阶段，「继续归档」从断点幂等续跑。
+
+读写路由对调用方透明：早于截止时间的读写到冷表，其余到热表；跨边界的查询由服务端生成 UNION。索引试验每次执行都经逻辑层重建查询，因此归档切换落在试验中途时，建索引前后读到的仍是同一版记录（结果 SHA-256 不变）。冷表原生补录使用 1e12 起的 id 段，与热表 id 永不冲突。
 
 ## 快速启动
 ```sh
@@ -36,12 +45,12 @@ docker compose exec -T backend python -m scripts.seed_demo
 种子含三账号、三负载、三候选与 5,000 遥测行。固定公式生成，不依赖随机数。seed 根据自然键/id补缺，不覆盖用户编辑。范围错误/非法列/重复名称有错误响应，空结果仍可正常比较。
 
 ## 算法与真实边界
-Python 对索引从左到右分析，匹配相等列每列 +40，首个时间范围列 +20 后停止，最高100。缺失首列停止。启发式不等于优化器成本。worker 使用 MySQL GET_LOCK 串行隔离，删除遗留试验索引 → 无候选基线 EXPLAIN/查询5次 → 建候选索引/ANALYZE → 查询5次和EXPLAIN → 校验有序全结果SHA-256 → 清理索引。数据固定、查询参数固定可复现，耗时受缓存和驱动波动影响，不保证提速。20 行写探针是真实 INSERT 后 ROLLBACK，可能消耗 auto_increment 序列号。试验只修改专用 telemetry 表，不能接受任意SQL或远端数据库。任务使用简单 Redis 单消费者，进程崩溃后的 running 任务不自动重试，保留状态供人工复查并新建任务。
+Python 对索引从左到右分析，匹配相等列每列 +40，首个时间范围列 +20 后停止，最高100。缺失首列停止。启发式不等于优化器成本。worker 使用 MySQL GET_LOCK 串行隔离，删除遗留试验索引 → 无候选基线 EXPLAIN/查询5次 → 在热表与冷表上同时建候选索引/ANALYZE → 查询5次和EXPLAIN → 校验有序全结果SHA-256 → 清理索引。归档批大小与节流由 ARCHIVE_BATCH_SIZE / ARCHIVE_THROTTLE_MS 调节（默认 500 行 / 50 毫秒）。数据固定、查询参数固定可复现，耗时受缓存和驱动波动影响，不保证提速。20 行写探针是真实 INSERT 后 ROLLBACK，可能消耗 auto_increment 序列号。试验只修改专用 telemetry 表，不能接受任意SQL或远端数据库。任务使用简单 Redis 单消费者，进程崩溃后的 running 任务不自动重试，保留状态供人工复查并新建任务。
 
 ## 技术与目录
 Python3.11 / FastAPI / SQLAlchemy / PyMySQL / Redis；MySQL8.0；原生 HTML CSS ES modules；nginx1.27。恰好五容器 frontend/backend/worker/db/redis，均有健康探针。数据库、Redis、应用产物各用命名卷。
 
-`backend/src` 按 models/schemas/services/controllers/routes/middlewares/config/constants/utils 分层；`backend/scripts/seed_demo.py`；`backend/migrations` 记录元数据建表版本。`frontend/src` 按 api/stores/pages/components/common/hooks/router/types/constants/utils 分层。截图、测试脚本及测试报告在批次根目录 `test-artifacts/gb-4102`，不放源码。
+`backend/src` 按 models/schemas/services/controllers/routes/middlewares/config/constants/utils 分层；`backend/scripts/seed_demo.py`；`backend/migrations` 记录元数据建表版本（002 为冷热归档）。`frontend/src` 按 api/stores/pages/components/common/hooks/router/types/constants/utils 分层。截图、测试脚本及测试报告在批次根目录 `test-artifacts/gb-4102`，不放源码；`python3 test-artifacts/gb-4102/run_archive_tests.py` 复验搬迁时更正、切换前中断续跑与跨段试验三个场景。
 
 共享枚举：角色和状态在 `backend/src/constants/enums.py` 与 `frontend/src/constants/enums.js`；服务/权限与前端状态组件使用一致枚举。前端共享 table/status/feedback；hooks forms/poll。双字体来自 Google Fonts（网络不可用时回退 sans-serif/monospace）。赭红工业试验纸视觉，支持桌面/平板/手机。
 

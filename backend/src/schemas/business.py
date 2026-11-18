@@ -29,3 +29,26 @@ class CandidateInput(BaseModel):
 class ExperimentInput(BaseModel):
  name:str=Field(min_length=2,max_length=120)
  candidate_id:int
+class TelemetryInput(BaseModel):
+ sensor_id:int=Field(ge=1,le=1000)
+ recorded_at:str
+ device_type:str
+ value:float
+ @model_validator(mode='after')
+ def valid(self):
+  self.recorded_at=datetime.fromisoformat(self.recorded_at).isoformat(timespec='seconds')
+  if self.device_type not in ('pump','motor','valve'):raise ValueError('设备类型无效')
+  return self
+class TelemetryCorrect(BaseModel):
+ value:float
+ device_type:str|None=None
+ @model_validator(mode='after')
+ def valid(self):
+  if self.device_type not in (None,'pump','motor','valve'):raise ValueError('设备类型无效')
+  return self
+class ArchiveInput(BaseModel):
+ cutoff:str
+ @model_validator(mode='after')
+ def valid(self):
+  self.cutoff=datetime.fromisoformat(self.cutoff).isoformat(timespec='seconds')
+  return self
